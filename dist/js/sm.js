@@ -511,7 +511,7 @@ Device/OS Detection
         }
 
 
-        var methods = ['onMouse', 'onClick', 'onTouchStart', 'onTouchMove', 'onTouchEnd', 'onTouchCancel'];
+        var methods = ['onMouse', 'onClick', 'onTouchStart', 'onTouchMove', 'onTouchCancel'];
         var context = this;
         for (var i = 0, l = methods.length; i < l; i++) {
             context[methods[i]] = bind(context[methods[i]], context);
@@ -527,7 +527,6 @@ Device/OS Detection
         layer.addEventListener('click', this.onClick, true);
         layer.addEventListener('touchstart', this.onTouchStart, false);
         layer.addEventListener('touchmove', this.onTouchMove, false);
-        layer.addEventListener('touchend', this.onTouchEnd, false);
         layer.addEventListener('touchcancel', this.onTouchCancel, false);
 
         // Hack is required for browsers that don't support Event#stopImmediatePropagation (e.g. Android 2)
@@ -930,106 +929,6 @@ Device/OS Detection
     };
 
 
-    /**
-     * On touch end, determine whether to send a click event at once.
-     *
-     * @param {Event} event
-     * @returns {boolean}
-     */
-    FastClick.prototype.onTouchEnd = function(event) {
-        var forElement, trackingClickStart, targetTagName, scrollParent, touch, targetElement = this.targetElement;
-
-        if (!this.trackingClick) {
-            return true;
-        }
-
-        // Prevent phantom clicks on fast double-tap (issue #36)
-        if ((event.timeStamp - this.lastClickTime) < this.tapDelay) {
-            this.cancelNextClick = true;
-            return true;
-        }
-
-        if ((event.timeStamp - this.trackingClickStart) > this.tapTimeout) {
-            return true;
-        }
-        //修复安卓微信下，input type="date" 的bug，经测试date,time,month已没问题
-        var unsupportedType = ['date', 'time', 'month'];
-        if(unsupportedType.indexOf(event.target.type) !== -1){
-            　　　　return false;
-            　　}
-        // Reset to prevent wrong click cancel on input (issue #156).
-        this.cancelNextClick = false;
-
-        this.lastClickTime = event.timeStamp;
-
-        trackingClickStart = this.trackingClickStart;
-        this.trackingClick = false;
-        this.trackingClickStart = 0;
-
-        // On some iOS devices, the targetElement supplied with the event is invalid if the layer
-        // is performing a transition or scroll, and has to be re-detected manually. Note that
-        // for this to function correctly, it must be called *after* the event target is checked!
-        // See issue #57; also filed as rdar://13048589 .
-        if (deviceIsIOSWithBadTarget) {
-            touch = event.changedTouches[0];
-
-            // In certain cases arguments of elementFromPoint can be negative, so prevent setting targetElement to null
-            targetElement = document.elementFromPoint(touch.pageX - window.pageXOffset, touch.pageY - window.pageYOffset) || targetElement;
-            targetElement.fastClickScrollParent = this.targetElement.fastClickScrollParent;
-        }
-
-        targetTagName = targetElement.tagName.toLowerCase();
-        if (targetTagName === 'label') {
-            forElement = this.findControl(targetElement);
-            if (forElement) {
-                this.focus(targetElement);
-                if (deviceIsAndroid) {
-                    return false;
-                }
-
-                targetElement = forElement;
-            }
-        } else if (this.needsFocus(targetElement)) {
-
-            // Case 1: If the touch started a while ago (best guess is 100ms based on tests for issue #36) then focus will be triggered anyway. Return early and unset the target element reference so that the subsequent click will be allowed through.
-            // Case 2: Without this exception for input elements tapped when the document is contained in an iframe, then any inputted text won't be visible even though the value attribute is updated as the user types (issue #37).
-            if ((event.timeStamp - trackingClickStart) > 100 || (deviceIsIOS && window.top !== window && targetTagName === 'input')) {
-                this.targetElement = null;
-                return false;
-            }
-
-            this.focus(targetElement);
-            this.sendClick(targetElement, event);
-
-            // Select elements need the event to go through on iOS 4, otherwise the selector menu won't open.
-            // Also this breaks opening selects when VoiceOver is active on iOS6, iOS7 (and possibly others)
-            if (!deviceIsIOS || targetTagName !== 'select') {
-                this.targetElement = null;
-                event.preventDefault();
-            }
-
-            return false;
-        }
-
-        if (deviceIsIOS && !deviceIsIOS4) {
-
-            // Don't send a synthetic click event if the target element is contained within a parent layer that was scrolled
-            // and this tap is being used to stop the scrolling (usually initiated by a fling - issue #42).
-            scrollParent = targetElement.fastClickScrollParent;
-            if (scrollParent && scrollParent.fastClickLastScrollTop !== scrollParent.scrollTop) {
-                return true;
-            }
-        }
-
-        // Prevent the actual click from going though - unless the target node is marked as requiring
-        // real clicks or if it is in the whitelist in which case only non-programmatic clicks are permitted.
-        if (!this.needsClick(targetElement)) {
-            event.preventDefault();
-            this.sendClick(targetElement, event);
-        }
-
-        return false;
-    };
 
 
     /**
@@ -1145,8 +1044,6 @@ Device/OS Detection
 
         layer.removeEventListener('click', this.onClick, true);
         layer.removeEventListener('touchstart', this.onTouchStart, false);
-        layer.removeEventListener('touchmove', this.onTouchMove, false);
-        layer.removeEventListener('touchend', this.onTouchEnd, false);
         layer.removeEventListener('touchcancel', this.onTouchCancel, false);
     };
 
